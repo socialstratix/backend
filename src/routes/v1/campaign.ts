@@ -1,0 +1,52 @@
+import { Router } from 'express';
+import { CampaignController } from '../../controllers/campaignController';
+import { authenticate } from '../../middleware/auth';
+
+const router = Router();
+
+/**
+ * @route   POST /api/v1/campaign
+ * @desc    Create a new campaign
+ * @access  Private (Brand only)
+ */
+router.post('/', authenticate, CampaignController.createCampaign);
+
+/**
+ * @route   GET /api/v1/campaign
+ * @desc    Get all campaigns
+ * @access  Public
+ * @query   status - Filter by status (active, previous, draft, closed, completed)
+ */
+router.get('/', CampaignController.getAllCampaigns);
+
+/**
+ * @route   GET /api/v1/campaign/brand/:brandId
+ * @desc    Get campaigns by brand ID
+ * @access  Public
+ * @query   status - Filter by status (active, previous, draft, closed, completed)
+ */
+router.get('/brand/:brandId', CampaignController.getCampaignsByBrandId);
+
+/**
+ * @route   GET /api/v1/campaign/:campaignId
+ * @desc    Get campaign by ID
+ * @access  Public
+ */
+router.get('/:campaignId', CampaignController.getCampaignById);
+
+/**
+ * @route   PUT /api/v1/campaign/:campaignId
+ * @desc    Update campaign
+ * @access  Private (Brand only)
+ */
+router.put('/:campaignId', authenticate, CampaignController.updateCampaign);
+
+/**
+ * @route   DELETE /api/v1/campaign/:campaignId
+ * @desc    Delete campaign
+ * @access  Private (Brand only)
+ */
+router.delete('/:campaignId', authenticate, CampaignController.deleteCampaign);
+
+export default router;
+
