@@ -15,9 +15,30 @@ const API_VERSION = process.env.API_VERSION || 'v1';
 const getAllowedOrigins = (): (string | RegExp)[] => {
   const origins: (string | RegExp)[] = [];
   
-  // Add frontend URLs from environment (supports comma-separated)
+  // Parse CORS origins from environment variable
+  // Supports JSON array format: ["https://example.com", "https://another.com"]
+  // Or comma-separated format: https://example.com,https://another.com
+  if (process.env.CORS_ORIGINS) {
+    try {
+      // Try parsing as JSON array first
+      const parsed = JSON.parse(process.env.CORS_ORIGINS);
+      if (Array.isArray(parsed)) {
+        origins.push(...parsed.map((url: string) => url.trim()));
+      } else {
+        // Fallback to comma-separated
+        const urls = process.env.CORS_ORIGINS.split(',').map((url: string) => url.trim());
+        origins.push(...urls);
+      }
+    } catch {
+      // If JSON parsing fails, treat as comma-separated
+      const urls = process.env.CORS_ORIGINS.split(',').map((url: string) => url.trim());
+      origins.push(...urls);
+    }
+  }
+  
+  // Legacy support: FRONTEND_URL (for backward compatibility)
   if (process.env.FRONTEND_URL) {
-    const urls = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+    const urls = process.env.FRONTEND_URL.split(',').map((url: string) => url.trim());
     origins.push(...urls);
   }
   
