@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { User } from '../models/User';
 import { Brand } from '../models/Brand';
 import { Influencer } from '../models/Influencer';
-import { IUser, UserType } from '../types';
+import { IUser, UserType, UserPlainObject } from '../types';
 
 export interface SignupData {
   email: string;
@@ -21,7 +21,7 @@ export class AuthService {
   /**
    * Sign up a new user
    */
-  static async signupUser(data: SignupData): Promise<IUser> {
+  static async signupUser(data: SignupData): Promise<UserPlainObject> {
     // Check if user already exists
     const existingUser = await User.findOne({ email: data.email.toLowerCase() });
     if (existingUser) {
@@ -48,13 +48,13 @@ export class AuthService {
     const userObject = user.toObject();
     delete (userObject as { password?: string }).password;
 
-    return userObject as IUser;
+    return userObject as unknown as UserPlainObject;
   }
 
   /**
    * Login user and validate credentials
    */
-  static async loginUser(data: LoginData): Promise<IUser> {
+  static async loginUser(data: LoginData): Promise<UserPlainObject> {
     // Find user by email
     const user = await User.findOne({ email: data.email.toLowerCase() }).select('+password');
     if (!user) {
@@ -75,13 +75,13 @@ export class AuthService {
     const userObject = user.toObject();
     delete (userObject as { password?: string }).password;
 
-    return userObject as IUser;
+    return userObject as unknown as UserPlainObject;
   }
 
   /**
    * Get user by ID with populated profile
    */
-  static async getUserById(userId: string): Promise<IUser | null> {
+  static async getUserById(userId: string): Promise<UserPlainObject | null> {
     const user = await User.findById(userId);
     if (!user) {
       return null;
@@ -96,10 +96,11 @@ export class AuthService {
     }
 
     const userObject = user.toObject();
-    return {
-      ...userObject,
-      profile,
-    } as IUser;
+    // Remove password if present
+    delete (userObject as { password?: string }).password;
+    // Return user object without profile (IUser doesn't include profile)
+    // Profile should be accessed separately if needed
+    return userObject as unknown as UserPlainObject;
   }
 
   /**

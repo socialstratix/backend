@@ -19,6 +19,13 @@ export interface IUser extends BaseDocument {
   lastLogin?: Date;
 }
 
+// Plain object version of IUser (without Document methods)
+export type UserPlainObject = Omit<IUser, keyof Document> & {
+  _id: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 // Location interface
 export interface ILocation {
   address?: string;
