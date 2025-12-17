@@ -12,21 +12,19 @@ const PORT = process.env.PORT || 3000;
 const API_VERSION = process.env.API_VERSION || 'v1';
 
 // CORS configuration
-const getAllowedOrigins = (): string[] => {
-  const origins: string[] = [];
+const getAllowedOrigins = (): (string | RegExp)[] => {
+  const origins: (string | RegExp)[] = [];
   
-  // Add frontend URL from environment
+  // Add frontend URLs from environment (supports comma-separated)
   if (process.env.FRONTEND_URL) {
-    origins.push(process.env.FRONTEND_URL);
+    const urls = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+    origins.push(...urls);
   }
   
-  // Add Vercel preview URLs pattern (for preview deployments)
-  if (process.env.VERCEL) {
-    // Allow all Vercel preview URLs
-    origins.push(/^https:\/\/.*\.vercel\.app$/);
-  }
+  // Allow all Vercel preview URLs (for preview deployments)
+  origins.push(/^https:\/\/.*\.vercel\.app$/);
   
-  // Add local development origin
+  // Add local development origins
   origins.push('http://localhost:5173');
   origins.push('http://localhost:3000');
   origins.push('http://127.0.0.1:5173');
@@ -59,9 +57,11 @@ const corsOptions = {
     } else {
       // In development, allow all origins for easier debugging
       if (process.env.NODE_ENV === 'development') {
+        console.warn(`⚠️  CORS: Allowing origin ${origin} in development mode`);
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        console.error(`❌ CORS: Blocked origin ${origin}`);
+        callback(new Error(`Origin ${origin} is not allowed by CORS`));
       }
     }
   },
