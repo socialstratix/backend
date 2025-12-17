@@ -23,22 +23,22 @@ const getAllowedOrigins = (): (string | RegExp)[] => {
       // Try parsing as JSON array first
       const parsed = JSON.parse(process.env.CORS_ORIGINS);
       if (Array.isArray(parsed)) {
-        origins.push(...parsed.map((url: string) => url.trim()));
+        origins.push(...parsed.map((url: string) => url.trim().replace(/\/+$/, '')));
       } else {
         // Fallback to comma-separated
-        const urls = process.env.CORS_ORIGINS.split(',').map((url: string) => url.trim());
+        const urls = process.env.CORS_ORIGINS.split(',').map((url: string) => url.trim().replace(/\/+$/, ''));
         origins.push(...urls);
       }
     } catch {
       // If JSON parsing fails, treat as comma-separated
-      const urls = process.env.CORS_ORIGINS.split(',').map((url: string) => url.trim());
+      const urls = process.env.CORS_ORIGINS.split(',').map((url: string) => url.trim().replace(/\/+$/, ''));
       origins.push(...urls);
     }
   }
   
   // Legacy support: FRONTEND_URL (for backward compatibility)
   if (process.env.FRONTEND_URL) {
-    const urls = process.env.FRONTEND_URL.split(',').map((url: string) => url.trim());
+    const urls = process.env.FRONTEND_URL.split(',').map((url: string) => url.trim().replace(/\/+$/, ''));
     origins.push(...urls);
   }
   
@@ -51,6 +51,14 @@ const getAllowedOrigins = (): (string | RegExp)[] => {
   origins.push('http://127.0.0.1:5173');
   origins.push('http://127.0.0.1:3000');
   
+  // Log configured origins in production for debugging
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🔒 CORS Configuration:');
+    console.log('  Allowed Origins:', origins.map(o => typeof o === 'string' ? o : o.toString()));
+    console.log('  CORS_ORIGINS:', process.env.CORS_ORIGINS || 'not set');
+    console.log('  FRONTEND_URL:', process.env.FRONTEND_URL || 'not set');
+  }
+  
   return origins;
 };
 
@@ -61,19 +69,27 @@ const corsOptions = {
       return callback(null, true);
     }
     
+    // Normalize origin (remove trailing slash, convert to lowercase for comparison)
+    const normalizedOrigin = origin.trim().replace(/\/+$/, '').toLowerCase();
+    
     const allowedOrigins = getAllowedOrigins();
     
     // Check if origin matches any allowed origin
     const isAllowed = allowedOrigins.some(allowedOrigin => {
       if (typeof allowedOrigin === 'string') {
-        return origin === allowedOrigin;
+        // Normalize allowed origin for comparison
+        const normalizedAllowed = allowedOrigin.trim().replace(/\/+$/, '').toLowerCase();
+        return normalizedOrigin === normalizedAllowed;
       } else if (allowedOrigin instanceof RegExp) {
-        return allowedOrigin.test(origin);
+        return allowedOrigin.test(origin); // Test original origin (case-sensitive for regex)
       }
       return false;
     });
     
     if (isAllowed) {
+      if (process.env.NODE_ENV === 'production') {
+        console.log(`✅ CORS: Allowed origin ${origin}`);
+      }
       callback(null, true);
     } else {
       // In development, allow all origins for easier debugging
@@ -82,6 +98,7 @@ const corsOptions = {
         callback(null, true);
       } else {
         console.error(`❌ CORS: Blocked origin ${origin}`);
+        console.error(`   Configured origins:`, allowedOrigins.map(o => typeof o === 'string' ? o : o.toString()));
         callback(new Error(`Origin ${origin} is not allowed by CORS`));
       }
     }

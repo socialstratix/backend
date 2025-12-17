@@ -48,7 +48,7 @@ const notificationSchema = new Schema<INotification>(
 
 // Indexes
 notificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 }); // For fetching unread notifications
-notificationSchema.index({ userId: 1 });
+// Note: userId is already included in the compound index above, so no need for separate index
 
 export const Notification = mongoose.model<INotification>(
   'Notification',

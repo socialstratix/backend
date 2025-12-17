@@ -18,7 +18,6 @@ const brandSchema = new Schema<IBrand>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'User ID is required'],
-      unique: true,
     },
     description: {
       type: String,

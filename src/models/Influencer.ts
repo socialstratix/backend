@@ -18,7 +18,6 @@ const influencerSchema = new Schema<IInfluencer>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'User ID is required'],
-      unique: true,
     },
     bio: {
       type: String,
