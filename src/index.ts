@@ -9,6 +9,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const API_VERSION = process.env.API_VERSION || 'v1';
 
 // CORS configuration
 const corsOptions = {
@@ -45,7 +46,7 @@ connectDatabase()
     // Start server
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`📡 API available at http://localhost:${PORT}/api/v1`);
+      console.log(`📡 API available at http://localhost:${PORT}/api/${API_VERSION}`);
     });
   })
   .catch((error) => {
