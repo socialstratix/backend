@@ -12,10 +12,63 @@ const PORT = process.env.PORT || 3000;
 const API_VERSION = process.env.API_VERSION || 'v1';
 
 // CORS configuration
+const getAllowedOrigins = (): string[] => {
+  const origins: string[] = [];
+  
+  // Add frontend URL from environment
+  if (process.env.FRONTEND_URL) {
+    origins.push(process.env.FRONTEND_URL);
+  }
+  
+  // Add Vercel preview URLs pattern (for preview deployments)
+  if (process.env.VERCEL) {
+    // Allow all Vercel preview URLs
+    origins.push(/^https:\/\/.*\.vercel\.app$/);
+  }
+  
+  // Add local development origin
+  origins.push('http://localhost:5173');
+  origins.push('http://localhost:3000');
+  origins.push('http://127.0.0.1:5173');
+  origins.push('http://127.0.0.1:3000');
+  
+  return origins;
+};
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    const allowedOrigins = getAllowedOrigins();
+    
+    // Check if origin matches any allowed origin
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      } else if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      // In development, allow all origins for easier debugging
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
 // Middleware
