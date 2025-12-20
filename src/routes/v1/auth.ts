@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AuthController } from '../../controllers/authController';
 import { authenticate } from '../../middleware/auth';
+import { uploadAvatar } from '../../middleware/upload';
 
 const router = Router();
 
@@ -30,7 +31,14 @@ router.get('/me', authenticate, AuthController.getMe);
  * @desc    Update current authenticated user
  * @access  Private
  */
-router.put('/me', authenticate, AuthController.updateMe);
+router.put('/me', authenticate, uploadAvatar, AuthController.updateMe);
+
+/**
+ * @route   POST /api/v1/auth/upload-avatar
+ * @desc    Upload user avatar
+ * @access  Private
+ */
+router.post('/upload-avatar', authenticate, uploadAvatar, AuthController.uploadAvatar);
 
 export default router;
 

@@ -114,12 +114,145 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve static files (uploaded images)
-app.use('/uploads', express.static('uploads'));
+// Static file serving removed - files are now served from Google Drive
+// Old uploads route kept for backward compatibility (returns 404)
+app.use('/uploads', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'File not found. Files are now stored in Google Drive.',
+  });
+});
 
 // Health check route
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Stratix API is running' });
+});
+
+// Google Drive test route (for debugging)
+app.get('/test-drive', async (req, res) => {
+  try {
+    const storageService = (await import('./services/storageService')).default;
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+    const serviceAccountEmail = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL;
+    
+    if (!folderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'GOOGLE_DRIVE_FOLDER_ID is not set',
+      });
+    }
+
+    if (!serviceAccountEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL is not set',
+      });
+    }
+
+    // Try to access the folder
+    const { google } = require('googleapis');
+    const privateKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    
+    const auth = new google.auth.JWT({
+      email: serviceAccountEmail,
+      key: privateKey,
+      scopes: ['https://www.googleapis.com/auth/drive'],
+    });
+
+    const drive = google.drive({ version: 'v3', auth });
+    
+    const folder = await drive.files.get({
+      fileId: folderId,
+      fields: 'id, name, permissions, capabilities',
+    });
+
+    res.json({
+      success: true,
+      message: 'Google Drive folder is accessible',
+      data: {
+        folderId: folder.data.id,
+        folderName: folder.data.name,
+        serviceAccountEmail,
+        permissions: folder.data.permissions?.length || 0,
+        canEdit: folder.data.capabilities?.canEdit || false,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to access Google Drive folder',
+      error: error.message,
+      details: {
+        folderId: process.env.GOOGLE_DRIVE_FOLDER_ID,
+        serviceAccountEmail: process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL,
+        errorCode: error.code,
+      },
+    });
+  }
+});
+
+// Clear Google Drive folder cache (for debugging - forces folder recreation)
+app.post('/test-drive/clear-cache', async (req, res) => {
+  try {
+    const storageService = (await import('./services/storageService')).default;
+    storageService.clearCache();
+    res.json({
+      success: true,
+      message: 'Folder cache cleared. Subfolders will be recreated on next upload.',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear cache',
+      error: error.message,
+    });
+  }
+});
+
+// OAuth2 callback route - REMOVED FOR SECURITY
+// This route was used one-time to generate the refresh token
+// It has been removed to prevent unauthorized access
+// If you need to regenerate the token, uncomment this route temporarily
+
+// Generate OAuth2 consent URL (one-time use to get refresh token)
+app.get('/oauth2/authorize', (req, res) => {
+  try {
+    const { google } = require('googleapis');
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI || `http://localhost:${process.env.PORT || 5000}/oauth2callback`
+    );
+
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent', // Force consent screen to get refresh token
+      scope: [
+        'https://www.googleapis.com/auth/drive.file', // Access to files created by the app
+        'https://www.googleapis.com/auth/drive', // Full Drive access (for folder management)
+      ],
+    });
+
+    res.json({
+      success: true,
+      message: 'Open this URL in your browser to authorize',
+      url: url,
+      instructions: [
+        '1. Open the URL above in your browser',
+        '2. Sign in with your Google account',
+        '3. Click "Allow" to grant permissions',
+        '4. You will be redirected to /oauth2callback',
+        '5. Copy the refresh token and add it to .env',
+        '6. DELETE the /oauth2callback route for security',
+      ],
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate authorization URL',
+      error: error.message,
+    });
+  }
 });
 
 // API Routes - Version 1

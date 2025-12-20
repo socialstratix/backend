@@ -3,6 +3,8 @@ import { Influencer } from '../models/Influencer';
 import { User } from '../models/User';
 import { SocialMediaProfile } from '../models/SocialMediaProfile';
 import { AuthRequest } from '../middleware/auth';
+import storageService from '../services/storageService';
+import path from 'path';
 
 export class InfluencerController {
   /**
@@ -350,11 +352,69 @@ export class InfluencerController {
       // Handle image uploads if files are present
       const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
       if (files) {
-        if (files.profileImage && files.profileImage[0]) {
-          updateData.profileImage = `/uploads/${files.profileImage[0].filename}`;
-        }
-        if (files.coverImage && files.coverImage[0]) {
-          updateData.coverImage = `/uploads/${files.coverImage[0].filename}`;
+        try {
+          // Handle profile image upload
+          if (files.profileImage && files.profileImage[0]) {
+            // Delete old profile image if it exists and is a Google Drive URL
+            if (influencer.profileImage && influencer.profileImage.includes('drive.google.com')) {
+              try {
+                await storageService.deleteFile(influencer.profileImage);
+              } catch (deleteError) {
+                console.warn('Failed to delete old profile image:', deleteError);
+              }
+            }
+
+            // Generate unique filename
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = path.extname(files.profileImage[0].originalname);
+            const name = path.basename(files.profileImage[0].originalname, ext);
+            const filename = `${name}-${uniqueSuffix}${ext}`;
+
+            // Upload to Google Drive
+            const profileImageUrl = await storageService.uploadFile({
+              buffer: files.profileImage[0].buffer,
+              filename: filename,
+              mimetype: files.profileImage[0].mimetype,
+              folderType: 'influencer-profile',
+            });
+
+            updateData.profileImage = profileImageUrl;
+          }
+
+          // Handle cover image upload
+          if (files.coverImage && files.coverImage[0]) {
+            // Delete old cover image if it exists and is a Google Drive URL
+            if (influencer.coverImage && influencer.coverImage.includes('drive.google.com')) {
+              try {
+                await storageService.deleteFile(influencer.coverImage);
+              } catch (deleteError) {
+                console.warn('Failed to delete old cover image:', deleteError);
+              }
+            }
+
+            // Generate unique filename
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = path.extname(files.coverImage[0].originalname);
+            const name = path.basename(files.coverImage[0].originalname, ext);
+            const filename = `${name}-${uniqueSuffix}${ext}`;
+
+            // Upload to Google Drive
+            const coverImageUrl = await storageService.uploadFile({
+              buffer: files.coverImage[0].buffer,
+              filename: filename,
+              mimetype: files.coverImage[0].mimetype,
+              folderType: 'influencer-cover',
+            });
+
+            updateData.coverImage = coverImageUrl;
+          }
+        } catch (uploadError: any) {
+          res.status(500).json({
+            success: false,
+            message: 'Failed to upload images to Google Drive',
+            error: uploadError.message,
+          });
+          return;
         }
       }
 
@@ -392,11 +452,67 @@ export class InfluencerController {
 
       await influencer.save();
 
+      // Populate userId to get user details
+      await influencer.populate('userId', 'name email avatar');
+
+      // Get social media profiles
+      const socialProfiles = await SocialMediaProfile.find({
+        influencerId: influencer._id,
+      });
+
+      // Format platform followers
+      const platformFollowers: {
+        x?: number;
+        youtube?: number;
+        facebook?: number;
+        instagram?: number;
+        tiktok?: number;
+      } = {};
+
+      socialProfiles.forEach((profile) => {
+        if (profile.platform === 'x') {
+          platformFollowers.x = profile.followers;
+        } else if (profile.platform === 'youtube') {
+          platformFollowers.youtube = profile.followers;
+        } else if (profile.platform === 'facebook') {
+          platformFollowers.facebook = profile.followers;
+        } else if (profile.platform === 'instagram') {
+          platformFollowers.instagram = profile.followers;
+        } else if (profile.platform === 'tiktok') {
+          platformFollowers.tiktok = profile.followers;
+        }
+      });
+
+      // Format response to match GET endpoints
+      const formattedInfluencer = {
+        _id: influencer._id,
+        userId: influencer.userId,
+        bio: influencer.bio,
+        description: influencer.description,
+        location: influencer.location,
+        profileImage: influencer.profileImage,
+        coverImage: influencer.coverImage,
+        rating: influencer.rating,
+        isTopCreator: influencer.isTopCreator,
+        hasVerifiedPayment: influencer.hasVerifiedPayment,
+        tags: influencer.tags,
+        createdAt: influencer.createdAt,
+        updatedAt: influencer.updatedAt,
+        user: influencer.userId && typeof influencer.userId === 'object'
+          ? {
+              name: (influencer.userId as any).name,
+              email: (influencer.userId as any).email,
+              avatar: (influencer.userId as any).avatar,
+            }
+          : undefined,
+        platformFollowers,
+      };
+
       res.status(200).json({
         success: true,
         message: 'Influencer profile updated successfully',
         data: {
-          influencer,
+          influencer: formattedInfluencer,
         },
       });
     } catch (error: any) {

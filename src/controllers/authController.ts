@@ -3,6 +3,8 @@ import { AuthService } from '../services/authService';
 import { generateToken } from '../utils/jwt';
 import { AuthRequest } from '../middleware/auth';
 import { User } from '../models/User';
+import storageService from '../services/storageService';
+import path from 'path';
 
 export class AuthController {
   /**
@@ -202,7 +204,48 @@ export class AuthController {
         return;
       }
 
-      // Update fields
+      // Handle avatar file upload if file is present
+      if (req.file) {
+        try {
+          // Delete old avatar if it exists and is a Google Drive URL
+          if (user.avatar && user.avatar.includes('drive.google.com')) {
+            try {
+              await storageService.deleteFile(user.avatar);
+            } catch (deleteError) {
+              // Log but don't fail if deletion fails
+              console.warn('Failed to delete old avatar:', deleteError);
+            }
+          }
+
+          // Generate unique filename
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = path.extname(req.file.originalname);
+          const name = path.basename(req.file.originalname, ext);
+          const filename = `avatar-${uniqueSuffix}${ext}`;
+
+          // Upload to Google Drive - use influencer-profile folder for avatars
+          const avatarUrl = await storageService.uploadFile({
+            buffer: req.file.buffer,
+            filename: filename,
+            mimetype: req.file.mimetype,
+            folderType: 'influencer-profile', // Using same folder as profile images
+          });
+
+          user.avatar = avatarUrl;
+        } catch (uploadError: any) {
+          res.status(500).json({
+            success: false,
+            message: 'Failed to upload avatar to Google Drive',
+            error: uploadError.message,
+          });
+          return;
+        }
+      } else if (avatar !== undefined) {
+        // If avatar is provided as a string (URL), use it directly
+        user.avatar = avatar;
+      }
+
+      // Update name field
       if (name !== undefined) {
         if (typeof name !== 'string' || name.trim() === '') {
           res.status(400).json({
@@ -212,10 +255,6 @@ export class AuthController {
           return;
         }
         user.name = name.trim();
-      }
-
-      if (avatar !== undefined) {
-        user.avatar = avatar;
       }
 
       await user.save();
@@ -240,6 +279,82 @@ export class AuthController {
       res.status(500).json({
         success: false,
         message: errorMessage,
+      });
+    }
+  }
+
+  /**
+   * Upload user avatar
+   * POST /api/v1/auth/upload-avatar
+   */
+  static async uploadAvatar(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: 'No file uploaded',
+        });
+        return;
+      }
+
+      // Get user
+      const user = await User.findById(req.user._id);
+
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+
+      // Delete old avatar if it exists and is a Google Drive URL
+      if (user.avatar && user.avatar.includes('drive.google.com')) {
+        try {
+          await storageService.deleteFile(user.avatar);
+        } catch (deleteError) {
+          console.warn('Failed to delete old avatar:', deleteError);
+        }
+      }
+
+      // Generate unique filename
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname);
+      const name = path.basename(req.file.originalname, ext);
+      const filename = `avatar-${uniqueSuffix}${ext}`;
+
+      // Upload to Google Drive
+      const avatarUrl = await storageService.uploadFile({
+        buffer: req.file.buffer,
+        filename: filename,
+        mimetype: req.file.mimetype,
+        folderType: 'influencer-profile', // Using same folder as profile images
+      });
+
+      // Update user avatar
+      user.avatar = avatarUrl;
+      await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Avatar uploaded successfully',
+        data: {
+          avatarUrl,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload avatar',
+        error: error.message,
       });
     }
   }

@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { Brand } from '../models/Brand';
 import { User } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
+import storageService from '../services/storageService';
+import path from 'path';
 
 export class BrandController {
   /**
@@ -273,7 +275,40 @@ export class BrandController {
 
       // Handle logo upload if file is present
       if (req.file) {
-        updateData.logo = `/uploads/${req.file.filename}`;
+        try {
+          // Delete old logo if it exists and is a Google Drive URL
+          if (brand.logo && brand.logo.includes('drive.google.com')) {
+            try {
+              await storageService.deleteFile(brand.logo);
+            } catch (deleteError) {
+              // Log but don't fail if deletion fails
+              console.warn('Failed to delete old logo:', deleteError);
+            }
+          }
+
+          // Generate unique filename
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = path.extname(req.file.originalname);
+          const name = path.basename(req.file.originalname, ext);
+          const filename = `${name}-${uniqueSuffix}${ext}`;
+
+          // Upload to Google Drive
+          const logoUrl = await storageService.uploadFile({
+            buffer: req.file.buffer,
+            filename: filename,
+            mimetype: req.file.mimetype,
+            folderType: 'brand',
+          });
+
+          updateData.logo = logoUrl;
+        } catch (uploadError: any) {
+          res.status(500).json({
+            success: false,
+            message: 'Failed to upload logo to Google Drive',
+            error: uploadError.message,
+          });
+          return;
+        }
       }
 
       // Update brand fields
@@ -327,7 +362,19 @@ export class BrandController {
         return;
       }
 
-      const logoUrl = `/uploads/${req.file.filename}`;
+      // Generate unique filename
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname);
+      const name = path.basename(req.file.originalname, ext);
+      const filename = `${name}-${uniqueSuffix}${ext}`;
+
+      // Upload to Google Drive
+      const logoUrl = await storageService.uploadFile({
+        buffer: req.file.buffer,
+        filename: filename,
+        mimetype: req.file.mimetype,
+        folderType: 'brand',
+      });
 
       res.status(200).json({
         success: true,
