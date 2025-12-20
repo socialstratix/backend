@@ -61,3 +61,8 @@ export const upload = multer({
 
 // Export specific upload configurations
 export const uploadLogo = upload.single('logo');
+export const uploadProfileImage = upload.single('profileImage');
+export const uploadInfluencerImages = upload.fields([
+  { name: 'profileImage', maxCount: 1 },
+  { name: 'coverImage', maxCount: 1 }
+]);

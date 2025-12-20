@@ -25,5 +25,12 @@ router.post('/login', AuthController.login);
  */
 router.get('/me', authenticate, AuthController.getMe);
 
+/**
+ * @route   PUT /api/v1/auth/me
+ * @desc    Update current authenticated user
+ * @access  Private
+ */
+router.put('/me', authenticate, AuthController.updateMe);
+
 export default router;
 

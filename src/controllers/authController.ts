@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { AuthService } from '../services/authService';
 import { generateToken } from '../utils/jwt';
+import { AuthRequest } from '../middleware/auth';
+import { User } from '../models/User';
 
 export class AuthController {
   /**
@@ -152,6 +154,75 @@ export class AuthController {
 
       res.status(200).json({
         success: true,
+        data: {
+          user: {
+            id: user._id,
+            email: user.email,
+            name: user.name,
+            userType: user.userType,
+            avatar: user.avatar,
+            isEmailVerified: user.isEmailVerified,
+            profile: (user as any).profile || null,
+          },
+        },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      res.status(500).json({
+        success: false,
+        message: errorMessage,
+      });
+    }
+  }
+
+  /**
+   * Update current authenticated user
+   * PUT /api/v1/auth/me
+   */
+  static async updateMe(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+        return;
+      }
+
+      const { name, avatar } = req.body;
+
+      // Get user as Mongoose document (not plain object) so we can save it
+      const user = await User.findById(req.user._id);
+
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+
+      // Update fields
+      if (name !== undefined) {
+        if (typeof name !== 'string' || name.trim() === '') {
+          res.status(400).json({
+            success: false,
+            message: 'Name cannot be empty',
+          });
+          return;
+        }
+        user.name = name.trim();
+      }
+
+      if (avatar !== undefined) {
+        user.avatar = avatar;
+      }
+
+      await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'User updated successfully',
         data: {
           user: {
             id: user._id,

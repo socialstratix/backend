@@ -281,7 +281,19 @@ export class BrandController {
       if (updateData.website !== undefined) brand.website = updateData.website;
       if (updateData.location) brand.location = updateData.location;
       if (updateData.logo) brand.logo = updateData.logo;
-      if (updateData.tags) brand.tags = updateData.tags;
+      if (updateData.tags) {
+        // Handle tags - if it's a JSON string (from FormData), parse it; otherwise use as is
+        if (typeof updateData.tags === 'string') {
+          try {
+            brand.tags = JSON.parse(updateData.tags);
+          } catch (e) {
+            // If parsing fails, treat as single tag
+            brand.tags = [updateData.tags];
+          }
+        } else {
+          brand.tags = updateData.tags;
+        }
+      }
 
       await brand.save();
 

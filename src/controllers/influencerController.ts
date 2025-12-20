@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Influencer } from '../models/Influencer';
 import { User } from '../models/User';
 import { SocialMediaProfile } from '../models/SocialMediaProfile';
+import { AuthRequest } from '../middleware/auth';
 
 export class InfluencerController {
   /**
@@ -312,6 +313,96 @@ export class InfluencerController {
       res.status(500).json({
         success: false,
         message: 'Failed to fetch influencer profile',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Update influencer profile
+   * @route PUT /api/v1/influencer/:userId
+   */
+  static async updateInfluencer(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      const updateData = req.body;
+
+      // Check if authenticated user matches the userId
+      if (req.user && req.user._id.toString() !== userId) {
+        res.status(403).json({
+          success: false,
+          message: 'Unauthorized to update this influencer profile',
+        });
+        return;
+      }
+
+      // Find influencer by userId
+      let influencer = await Influencer.findOne({ userId });
+
+      if (!influencer) {
+        res.status(404).json({
+          success: false,
+          message: 'Influencer not found',
+        });
+        return;
+      }
+
+      // Handle image uploads if files are present
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+      if (files) {
+        if (files.profileImage && files.profileImage[0]) {
+          updateData.profileImage = `/uploads/${files.profileImage[0].filename}`;
+        }
+        if (files.coverImage && files.coverImage[0]) {
+          updateData.coverImage = `/uploads/${files.coverImage[0].filename}`;
+        }
+      }
+
+      // Update influencer fields
+      if (updateData.description !== undefined) influencer.description = updateData.description;
+      if (updateData.bio !== undefined) influencer.bio = updateData.bio;
+      if (updateData.location) {
+        // Handle location - if it's a JSON string (from FormData), parse it; otherwise use as is
+        if (typeof updateData.location === 'string') {
+          try {
+            influencer.location = JSON.parse(updateData.location);
+          } catch (e) {
+            // If parsing fails, keep existing location
+            console.warn('Failed to parse location:', e);
+          }
+        } else {
+          influencer.location = updateData.location;
+        }
+      }
+      if (updateData.profileImage) influencer.profileImage = updateData.profileImage;
+      if (updateData.coverImage) influencer.coverImage = updateData.coverImage;
+      if (updateData.tags) {
+        // Handle tags - if it's a JSON string (from FormData), parse it; otherwise use as is
+        if (typeof updateData.tags === 'string') {
+          try {
+            influencer.tags = JSON.parse(updateData.tags);
+          } catch (e) {
+            // If parsing fails, treat as single tag
+            influencer.tags = [updateData.tags];
+          }
+        } else {
+          influencer.tags = updateData.tags;
+        }
+      }
+
+      await influencer.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Influencer profile updated successfully',
+        data: {
+          influencer,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update influencer profile',
         error: error.message,
       });
     }

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { InfluencerController } from '../../controllers/influencerController';
+import { authenticate } from '../../middleware/auth';
+import { uploadInfluencerImages } from '../../middleware/upload';
 
 const router = Router();
 
@@ -23,6 +25,13 @@ router.get('/id/:influencerId', InfluencerController.getInfluencerById);
  * @access  Public
  */
 router.get('/:userId', InfluencerController.getInfluencerByUserId);
+
+/**
+ * @route   PUT /api/v1/influencer/:userId
+ * @desc    Update influencer profile
+ * @access  Private (Influencer only)
+ */
+router.put('/:userId', authenticate, uploadInfluencerImages, InfluencerController.updateInfluencer);
 
 export default router;
 
