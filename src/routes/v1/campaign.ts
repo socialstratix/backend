@@ -28,6 +28,14 @@ router.get('/', CampaignController.getAllCampaigns);
 router.get('/brand/:brandId', CampaignController.getCampaignsByBrandId);
 
 /**
+ * @route   GET /api/v1/campaign/similar/:campaignId
+ * @desc    Get similar campaigns by matching tags
+ * @access  Public
+ * @query   limit - Number of similar campaigns to return (default: 3)
+ */
+router.get('/similar/:campaignId', CampaignController.getSimilarCampaigns);
+
+/**
  * @route   GET /api/v1/campaign/:campaignId
  * @desc    Get campaign by ID
  * @access  Public

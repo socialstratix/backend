@@ -87,6 +87,131 @@ export class CampaignController {
   }
 
   /**
+   * Get similar campaigns by matching tags
+   * @route GET /api/v1/campaign/similar/:campaignId
+   */
+  static async getSimilarCampaigns(req: Request, res: Response): Promise<void> {
+    try {
+      const { campaignId } = req.params;
+      const { limit = 3 } = req.query;
+
+      // Find the current campaign to get its tags
+      const currentCampaign = await Campaign.findById(campaignId).select('tags platforms budget');
+      
+      if (!currentCampaign) {
+        res.status(404).json({
+          success: false,
+          message: 'Campaign not found',
+        });
+        return;
+      }
+
+      const limitNum = parseInt(limit as string, 10);
+      const currentTags = currentCampaign.tags || [];
+      const currentPlatforms = currentCampaign.platforms || [];
+      const currentBudget = currentCampaign.budget || 0;
+
+      // Build filter to find similar campaigns
+      const filter: any = {
+        _id: { $ne: campaignId }, // Exclude current campaign
+        isClosed: false,
+        status: 'active',
+      };
+
+      // Find campaigns with matching tags
+      if (currentTags.length > 0) {
+        filter.tags = { $in: currentTags };
+      }
+
+      // Fetch campaigns with matching tags
+      const campaigns = await Campaign.find(filter)
+        .populate({
+          path: 'brandId',
+          select: 'userId logo',
+          populate: {
+            path: 'userId',
+            select: 'name email avatar',
+          },
+        })
+        .sort({ createdAt: -1 })
+        .limit(limitNum * 2) // Get more to filter and sort
+        .lean();
+
+      // Calculate similarity score and sort
+      const scoredCampaigns = campaigns.map((campaign: any) => {
+        let score = 0;
+        const campaignTags = campaign.tags || [];
+        const campaignPlatforms = campaign.platforms || [];
+        const campaignBudget = campaign.budget || 0;
+
+        // Score based on shared tags (10 points per tag)
+        if (currentTags.length > 0 && campaignTags.length > 0) {
+          const sharedTags = currentTags.filter((tag) => campaignTags.includes(tag));
+          score += sharedTags.length * 10;
+        }
+
+        // Score based on shared platforms (5 points per platform)
+        if (currentPlatforms.length > 0 && campaignPlatforms.length > 0) {
+          const sharedPlatforms = currentPlatforms.filter((platform) => 
+            campaignPlatforms.includes(platform)
+          );
+          score += sharedPlatforms.length * 5;
+        }
+
+        // Score based on budget similarity (3 points if within 50% range)
+        if (currentBudget > 0 && campaignBudget > 0) {
+          const budgetDiff = Math.abs(currentBudget - campaignBudget);
+          const avgBudget = (currentBudget + campaignBudget) / 2;
+          if (avgBudget > 0 && budgetDiff / avgBudget < 0.5) {
+            score += 3;
+          }
+        }
+
+        return { ...campaign, similarityScore: score };
+      })
+      .filter((camp: any) => camp.similarityScore > 0) // Only campaigns with some similarity
+      .sort((a: any, b: any) => b.similarityScore - a.similarityScore)
+      .slice(0, limitNum); // Get top N similar campaigns
+
+      // Format response
+      const formattedCampaigns = scoredCampaigns.map((campaign: any) => ({
+        _id: campaign._id,
+        brandId: campaign.brandId?._id || campaign.brandId,
+        brandName: campaign.brandId?.userId?.name || 'Unknown Brand',
+        brandAvatar: campaign.brandId?.userId?.avatar || campaign.brandId?.logo || '',
+        name: campaign.name,
+        description: campaign.description,
+        budget: campaign.budget,
+        status: campaign.status,
+        platforms: campaign.platforms,
+        tags: campaign.tags || [],
+        location: campaign.location || '',
+        createdAt: campaign.createdAt,
+        updatedAt: campaign.updatedAt,
+        publishDate: campaign.publishDate,
+        deadline: campaign.deadline,
+        requirements: campaign.requirements,
+        attachments: campaign.attachments || [],
+        isClosed: campaign.isClosed,
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          campaigns: formattedCampaigns,
+          count: formattedCampaigns.length,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch similar campaigns',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
    * Get campaigns by brand ID
    * @route GET /api/v1/campaign/brand/:brandId
    */
@@ -353,7 +478,17 @@ export class CampaignController {
         return;
       }
 
-      const campaign = await Campaign.findById(campaignId).lean();
+      // Fetch campaign with brand information populated
+      const campaign = await Campaign.findById(campaignId)
+        .populate({
+          path: 'brandId',
+          select: 'userId logo',
+          populate: {
+            path: 'userId',
+            select: 'name email avatar',
+          },
+        })
+        .lean();
 
       if (!campaign) {
         res.status(404).json({
@@ -363,10 +498,12 @@ export class CampaignController {
         return;
       }
 
-      // Format response
+      // Format response with brand information
       const formattedCampaign = {
         _id: campaign._id,
-        brandId: campaign.brandId,
+        brandId: (campaign.brandId as any)?._id || campaign.brandId,
+        brandName: (campaign.brandId as any)?.userId?.name || 'Unknown Brand',
+        brandAvatar: (campaign.brandId as any)?.userId?.avatar || (campaign.brandId as any)?.logo || '',
         name: campaign.name,
         description: campaign.description,
         budget: campaign.budget,

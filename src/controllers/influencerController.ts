@@ -30,10 +30,25 @@ export class InfluencerController {
       const filter: any = {};
 
       if (search) {
+        // First, find users that match the search query by name
+        // This allows searching influencers by their user name
+        const matchingUsers = await User.find({
+          name: { $regex: search, $options: 'i' },
+          userType: 'influencer',
+        }).select('_id');
+        
+        const matchingUserIds = matchingUsers.map((user) => user._id);
+        
+        // Build search filter to include user name search
         filter.$or = [
           { bio: { $regex: search, $options: 'i' } },
           { description: { $regex: search, $options: 'i' } },
         ];
+        
+        // If we found matching users by name, include them in the search
+        if (matchingUserIds.length > 0) {
+          filter.$or.push({ userId: { $in: matchingUserIds } });
+        }
       }
 
       if (tags) {
