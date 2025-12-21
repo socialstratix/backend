@@ -370,8 +370,8 @@ export class InfluencerController {
         try {
           // Handle profile image upload
           if (files.profileImage && files.profileImage[0]) {
-            // Delete old profile image if it exists and is a Google Drive URL
-            if (influencer.profileImage && influencer.profileImage.includes('drive.google.com')) {
+            // Delete old profile image if it exists
+            if (influencer.profileImage) {
               try {
                 await storageService.deleteFile(influencer.profileImage);
               } catch (deleteError) {
@@ -385,7 +385,7 @@ export class InfluencerController {
             const name = path.basename(files.profileImage[0].originalname, ext);
             const filename = `${name}-${uniqueSuffix}${ext}`;
 
-            // Upload to Google Drive
+            // Upload to storage (Cloudinary with Drive fallback)
             const profileImageUrl = await storageService.uploadFile({
               buffer: files.profileImage[0].buffer,
               filename: filename,
@@ -398,8 +398,8 @@ export class InfluencerController {
 
           // Handle cover image upload
           if (files.coverImage && files.coverImage[0]) {
-            // Delete old cover image if it exists and is a Google Drive URL
-            if (influencer.coverImage && influencer.coverImage.includes('drive.google.com')) {
+            // Delete old cover image if it exists
+            if (influencer.coverImage) {
               try {
                 await storageService.deleteFile(influencer.coverImage);
               } catch (deleteError) {
@@ -413,7 +413,7 @@ export class InfluencerController {
             const name = path.basename(files.coverImage[0].originalname, ext);
             const filename = `${name}-${uniqueSuffix}${ext}`;
 
-            // Upload to Google Drive
+            // Upload to storage (Cloudinary with Drive fallback)
             const coverImageUrl = await storageService.uploadFile({
               buffer: files.coverImage[0].buffer,
               filename: filename,
@@ -426,7 +426,7 @@ export class InfluencerController {
         } catch (uploadError: any) {
           res.status(500).json({
             success: false,
-            message: 'Failed to upload images to Google Drive',
+            message: 'Failed to upload images',
             error: uploadError.message,
           });
           return;

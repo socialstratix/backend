@@ -276,8 +276,8 @@ export class BrandController {
       // Handle logo upload if file is present
       if (req.file) {
         try {
-          // Delete old logo if it exists and is a Google Drive URL
-          if (brand.logo && brand.logo.includes('drive.google.com')) {
+          // Delete old logo if it exists
+          if (brand.logo) {
             try {
               await storageService.deleteFile(brand.logo);
             } catch (deleteError) {
@@ -292,7 +292,7 @@ export class BrandController {
           const name = path.basename(req.file.originalname, ext);
           const filename = `${name}-${uniqueSuffix}${ext}`;
 
-          // Upload to Google Drive
+          // Upload to storage (Cloudinary with Drive fallback)
           const logoUrl = await storageService.uploadFile({
             buffer: req.file.buffer,
             filename: filename,
@@ -304,7 +304,7 @@ export class BrandController {
         } catch (uploadError: any) {
           res.status(500).json({
             success: false,
-            message: 'Failed to upload logo to Google Drive',
+            message: 'Failed to upload logo',
             error: uploadError.message,
           });
           return;
@@ -368,7 +368,7 @@ export class BrandController {
       const name = path.basename(req.file.originalname, ext);
       const filename = `${name}-${uniqueSuffix}${ext}`;
 
-      // Upload to Google Drive
+      // Upload to storage (Cloudinary with Drive fallback)
       const logoUrl = await storageService.uploadFile({
         buffer: req.file.buffer,
         filename: filename,

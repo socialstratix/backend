@@ -128,10 +128,104 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Stratix API is running' });
 });
 
-// Google Drive test route (for debugging)
-app.get('/test-drive', async (req, res) => {
+// Storage service test route (for debugging - tests both Cloudinary and Google Drive)
+app.get('/test-storage', async (req, res) => {
   try {
     const storageService = (await import('./services/storageService')).default;
+    const results: any = {
+      cloudinary: {
+        configured: false,
+        accessible: false,
+        error: null,
+      },
+      googleDrive: {
+        configured: false,
+        accessible: false,
+        error: null,
+      },
+    };
+
+    // Test Cloudinary
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (cloudName && apiKey && apiSecret) {
+      results.cloudinary.configured = true;
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({
+          cloud_name: cloudName,
+          api_key: apiKey,
+          api_secret: apiSecret,
+        });
+        // Test by trying to ping the API
+        await cloudinary.api.ping();
+        results.cloudinary.accessible = true;
+      } catch (error: any) {
+        results.cloudinary.error = error.message;
+      }
+    }
+
+    // Test Google Drive
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+    const serviceAccountEmail = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+    if (folderId && (serviceAccountEmail || (clientId && clientSecret && refreshToken))) {
+      results.googleDrive.configured = true;
+      try {
+        const { google } = require('googleapis');
+        let auth;
+
+        if (clientId && clientSecret && refreshToken) {
+          const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+          oauth2Client.setCredentials({ refresh_token: refreshToken });
+          auth = oauth2Client;
+        } else if (serviceAccountEmail) {
+          const privateKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+          if (privateKey) {
+            auth = new google.auth.JWT({
+              email: serviceAccountEmail,
+              key: privateKey,
+              scopes: ['https://www.googleapis.com/auth/drive'],
+            });
+          }
+        }
+
+        if (auth) {
+          const drive = google.drive({ version: 'v3', auth });
+          const folder = await drive.files.get({
+            fileId: folderId,
+            fields: 'id, name, permissions, capabilities',
+          });
+          results.googleDrive.accessible = true;
+          results.googleDrive.folderName = folder.data.name;
+        }
+      } catch (error: any) {
+        results.googleDrive.error = error.message;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Storage services status',
+      data: results,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to test storage services',
+      error: error.message,
+    });
+  }
+});
+
+// Google Drive test route (for debugging - legacy, kept for backward compatibility)
+app.get('/test-drive', async (req, res) => {
+  try {
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
     const serviceAccountEmail = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL;
     

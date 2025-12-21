@@ -316,8 +316,8 @@ export class AuthController {
         return;
       }
 
-      // Delete old avatar if it exists and is a Google Drive URL
-      if (user.avatar && user.avatar.includes('drive.google.com')) {
+      // Delete old avatar if it exists
+      if (user.avatar) {
         try {
           await storageService.deleteFile(user.avatar);
         } catch (deleteError) {
@@ -331,7 +331,7 @@ export class AuthController {
       const name = path.basename(req.file.originalname, ext);
       const filename = `avatar-${uniqueSuffix}${ext}`;
 
-      // Upload to Google Drive
+      // Upload to storage (Cloudinary with Drive fallback)
       const avatarUrl = await storageService.uploadFile({
         buffer: req.file.buffer,
         filename: filename,
