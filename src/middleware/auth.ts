@@ -6,9 +6,6 @@ export interface AuthRequest extends Request {
   user?: any;
 }
 
-/**
- * Authentication middleware to verify JWT token
- */
 export const authenticate = async (
   req: Request,
   res: Response,
