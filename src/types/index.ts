@@ -107,6 +107,13 @@ export interface ICampaignApplication extends BaseDocument {
   proposedRate?: number;
 }
 
+// Saved Campaign Types
+export interface ISavedCampaign extends BaseDocument {
+  influencerId: ObjectId;
+  campaignId: ObjectId;
+  savedAt: Date;
+}
+
 // Conversation Types
 export interface ILastMessage {
   text: string;

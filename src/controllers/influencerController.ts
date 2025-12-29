@@ -208,6 +208,15 @@ export class InfluencerController {
         }
       });
 
+      // Format social profiles data
+      const socialProfilesData = socialProfiles.map(profile => ({
+        platform: profile.platform,
+        username: profile.username,
+        profileUrl: profile.profileUrl,
+        followers: profile.followers,
+        isVerified: profile.isVerified,
+      }));
+
       // Format response
       const response = {
         success: true,
@@ -234,6 +243,7 @@ export class InfluencerController {
                 }
               : undefined,
             platformFollowers,
+            socialProfiles: socialProfilesData,
           },
         },
       };
@@ -295,6 +305,15 @@ export class InfluencerController {
         }
       });
 
+      // Format social profiles data
+      const socialProfilesData = socialProfiles.map(profile => ({
+        platform: profile.platform,
+        username: profile.username,
+        profileUrl: profile.profileUrl,
+        followers: profile.followers,
+        isVerified: profile.isVerified,
+      }));
+
       // Format response
       const response = {
         success: true,
@@ -321,6 +340,7 @@ export class InfluencerController {
                 }
               : undefined,
             platformFollowers,
+            socialProfiles: socialProfilesData,
           },
         },
       };
