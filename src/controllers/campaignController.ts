@@ -12,7 +12,7 @@ export class CampaignController {
    */
   static async getAllCampaigns(req: Request, res: Response): Promise<void> {
     try {
-      const { status } = req.query;
+      const { status, sortBy } = req.query;
 
       // Build filter query
       const filter: any = {};
@@ -35,6 +35,16 @@ export class CampaignController {
         filter.status = 'active';
       }
 
+      // Build sort query
+      let sortQuery: any = { createdAt: -1 }; // Default sort by date (newest first)
+      if (sortBy === 'budget') {
+        sortQuery = { budget: -1 }; // Sort by budget (highest first)
+      } else if (sortBy === 'name') {
+        sortQuery = { name: 1 }; // Sort by name (A-Z)
+      } else if (sortBy === 'date') {
+        sortQuery = { createdAt: -1 }; // Sort by date (newest first)
+      }
+
       // Fetch campaigns with brand information
       const campaigns = await Campaign.find(filter)
         .populate({
@@ -45,7 +55,7 @@ export class CampaignController {
             select: 'name email avatar',
           },
         })
-        .sort({ createdAt: -1 })
+        .sort(sortQuery)
         .lean();
 
       // Format response
@@ -218,7 +228,7 @@ export class CampaignController {
   static async getCampaignsByBrandId(req: Request, res: Response): Promise<void> {
     try {
       const { brandId } = req.params;
-      const { status } = req.query;
+      const { status, sortBy } = req.query;
 
       // Verify brand exists
       const brand = await Brand.findById(brandId);
@@ -245,9 +255,19 @@ export class CampaignController {
         }
       }
 
+      // Build sort query
+      let sortQuery: any = { createdAt: -1 }; // Default sort by date (newest first)
+      if (sortBy === 'budget') {
+        sortQuery = { budget: -1 }; // Sort by budget (highest first)
+      } else if (sortBy === 'name') {
+        sortQuery = { name: 1 }; // Sort by name (A-Z)
+      } else if (sortBy === 'date') {
+        sortQuery = { createdAt: -1 }; // Sort by date (newest first)
+      }
+
       // Fetch campaigns
       const campaigns = await Campaign.find(filter)
-        .sort({ createdAt: -1 })
+        .sort(sortQuery)
         .lean();
 
       // Format response

@@ -16,6 +16,7 @@ router.post('/', authenticate, CampaignController.createCampaign);
  * @desc    Get all campaigns
  * @access  Public
  * @query   status - Filter by status (active, previous, draft, closed, completed)
+ * @query   sortBy - Sort campaigns (date, budget, name) - Default: date
  */
 router.get('/', CampaignController.getAllCampaigns);
 
@@ -24,6 +25,7 @@ router.get('/', CampaignController.getAllCampaigns);
  * @desc    Get campaigns by brand ID
  * @access  Public
  * @query   status - Filter by status (active, previous, draft, closed, completed)
+ * @query   sortBy - Sort campaigns (date, budget, name) - Default: date
  */
 router.get('/brand/:brandId', CampaignController.getCampaignsByBrandId);
 
