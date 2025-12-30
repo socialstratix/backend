@@ -2,8 +2,13 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Campaign } from '../models/Campaign';
 import { Brand } from '../models/Brand';
+import { CampaignApplication } from '../models/CampaignApplication';
+import { Influencer } from '../models/Influencer';
+import { Conversation } from '../models/Conversation';
+import { Message } from '../models/Message';
 import { AuthRequest } from '../middleware/auth';
 import { Platform } from '../types';
+import { io } from '../socket';
 
 export class CampaignController {
   /**
@@ -820,6 +825,147 @@ export class CampaignController {
       res.status(500).json({
         success: false,
         message: 'Failed to delete campaign',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Apply to a campaign (Influencer only)
+   * @route POST /api/v1/campaign/:campaignId/apply
+   */
+  static async applyToCampaign(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { campaignId } = req.params;
+      const userId = req.user._id;
+
+      if (!mongoose.Types.ObjectId.isValid(campaignId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid campaign ID format',
+        });
+        return;
+      }
+
+      // Check if user is an influencer
+      const influencer = await Influencer.findOne({ userId });
+      if (!influencer) {
+        res.status(403).json({
+          success: false,
+          message: 'Only influencers can apply to campaigns',
+        });
+        return;
+      }
+
+      // Check if campaign exists
+      const campaign = await Campaign.findById(campaignId).populate({
+        path: 'brandId',
+        select: 'userId',
+      });
+
+      if (!campaign) {
+        res.status(404).json({
+          success: false,
+          message: 'Campaign not found',
+        });
+        return;
+      }
+
+      // Check if campaign is closed
+      if (campaign.isClosed || campaign.status === 'closed' || campaign.status === 'completed') {
+        res.status(400).json({
+          success: false,
+          message: 'Cannot apply to a closed or completed campaign',
+        });
+        return;
+      }
+
+      // Check if already applied
+      const existingApplication = await CampaignApplication.findOne({
+        campaignId,
+        influencerId: influencer._id,
+      });
+
+      if (existingApplication) {
+        res.status(400).json({
+          success: false,
+          message: 'You have already applied to this campaign',
+        });
+        return;
+      }
+
+      // Create application
+      const application = await CampaignApplication.create({
+        campaignId,
+        influencerId: influencer._id,
+        status: 'pending',
+      });
+
+      // Get brand's userId
+      const brand = campaign.brandId as any;
+      const brandUserId = brand.userId;
+
+      // Create or get existing conversation between influencer and brand
+      let conversation = await Conversation.findOne({
+        participants: {
+          $all: [userId, brandUserId],
+          $size: 2,
+        },
+      });
+
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: [userId, brandUserId],
+        });
+      }
+
+      // Send default message
+      const defaultMessage = `Hi! I'm interested in applying for your campaign "${campaign.name}". I'd love to discuss the details and how I can help promote your brand.`;
+      
+      const message = await Message.create({
+        conversationId: conversation._id,
+        senderId: userId,
+        text: defaultMessage,
+        isRead: false,
+      });
+
+      // Populate sender info
+      await message.populate('senderId', 'name avatar email');
+
+      // Update conversation's last message
+      await Conversation.findByIdAndUpdate(conversation._id, {
+        lastMessage: {
+          text: defaultMessage,
+          senderId: userId,
+          timestamp: new Date(),
+        },
+        updatedAt: new Date(),
+      });
+
+      // Emit socket event to notify brand
+      if (io) {
+        io.to(conversation._id.toString()).emit('newMessage', message.toObject());
+        io.to(brandUserId.toString()).emit('newMessage', message.toObject());
+      }
+
+      res.status(201).json({
+        success: true,
+        data: {
+          application,
+          conversation: {
+            _id: conversation._id,
+          },
+          message: {
+            _id: message._id,
+          },
+        },
+        message: 'Application submitted successfully. A conversation has been started with the brand.',
+      });
+    } catch (error: any) {
+      console.error('Error applying to campaign:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to apply to campaign',
         error: error.message,
       });
     }

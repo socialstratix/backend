@@ -58,5 +58,12 @@ router.put('/:campaignId', authenticate, CampaignController.updateCampaign);
  */
 router.delete('/:campaignId', authenticate, CampaignController.deleteCampaign);
 
+/**
+ * @route   POST /api/v1/campaign/:campaignId/apply
+ * @desc    Apply to a campaign (Influencer only)
+ * @access  Private (Influencer only)
+ */
+router.post('/:campaignId/apply', authenticate, CampaignController.applyToCampaign);
+
 export default router;
 

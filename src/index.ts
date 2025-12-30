@@ -1,8 +1,10 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import { connectDatabase } from './config/database';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import v1Routes from './routes/v1';
+import { initializeSocket, setSocketInstance } from './socket';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -358,13 +360,21 @@ app.use(notFoundHandler);
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Initialize Socket.io
+const socketServer = initializeSocket(httpServer);
+setSocketInstance(socketServer);
+
 // Connect to database
 connectDatabase()
   .then(() => {
     // Start server
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`📡 API available at http://localhost:${PORT}/api/${API_VERSION}`);
+      console.log(`🔌 WebSocket server ready`);
     });
   })
   .catch((error) => {
