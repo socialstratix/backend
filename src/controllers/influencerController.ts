@@ -623,6 +623,19 @@ export class InfluencerController {
       }
       const adjustedTotal = Math.floor(totalFollowers * periodMultiplier);
 
+      // Generate engagement metrics (views and likes)
+      // Using different seed multipliers for variation
+      const avgViewPerPost = Math.floor(10000 + ((seed * 7) % 90000)); // 10K-100K range
+      const highestView = Math.floor(50000 + ((seed * 11) % 450000)); // 50K-500K range
+      const avgLikesPerPost = Math.floor(5000 + ((seed * 13) % 45000)); // 5K-50K range
+      const highestLikes = Math.floor(25000 + ((seed * 17) % 225000)); // 25K-250K range
+
+      // Apply period multiplier to engagement metrics
+      const adjustedAvgViewPerPost = Math.floor(avgViewPerPost * periodMultiplier);
+      const adjustedHighestView = Math.floor(highestView * periodMultiplier);
+      const adjustedAvgLikesPerPost = Math.floor(avgLikesPerPost * periodMultiplier);
+      const adjustedHighestLikes = Math.floor(highestLikes * periodMultiplier);
+
       res.status(200).json({
         success: true,
         data: {
@@ -631,6 +644,11 @@ export class InfluencerController {
           platformFollowers: adjustedPlatformFollowers,
           totalFollowers: adjustedTotal,
           periodLabel,
+          // Engagement metrics
+          avgViewPerPost: adjustedAvgViewPerPost,
+          highestView: adjustedHighestView,
+          avgLikesPerPost: adjustedAvgLikesPerPost,
+          highestLikes: adjustedHighestLikes,
         },
       });
     } catch (error: any) {
