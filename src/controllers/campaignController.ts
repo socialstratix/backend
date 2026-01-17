@@ -17,7 +17,7 @@ export class CampaignController {
    */
   static async getAllCampaigns(req: Request, res: Response): Promise<void> {
     try {
-      const { status, sortBy } = req.query;
+      const { status, sortBy, sortOrder } = req.query;
 
       // Build filter query
       const filter: any = {};
@@ -40,18 +40,36 @@ export class CampaignController {
         filter.status = 'active';
       }
 
+      // Determine sort order (asc = 1, desc = -1)
+      const order = sortOrder === 'asc' ? 1 : -1;
+      
+      // Default sort orders based on field
+      const defaultOrder: Record<string, number> = {
+        date: -1,    // newest first
+        budget: -1,  // highest first
+        name: 1,     // A-Z
+      };
+
       // Build sort query
-      let sortQuery: any = { createdAt: -1 }; // Default sort by date (newest first)
+      let sortQuery: any = { createdAt: defaultOrder.date }; // Default sort by date (newest first)
       if (sortBy === 'budget') {
-        sortQuery = { budget: -1 }; // Sort by budget (highest first)
+        sortQuery = { budget: sortOrder ? order : defaultOrder.budget };
       } else if (sortBy === 'name') {
-        sortQuery = { name: 1 }; // Sort by name (A-Z)
+        // For name sorting, use case-insensitive collation
+        sortQuery = { name: sortOrder ? order : defaultOrder.name };
       } else if (sortBy === 'date') {
-        sortQuery = { createdAt: -1 }; // Sort by date (newest first)
+        sortQuery = { createdAt: sortOrder ? order : defaultOrder.date };
       }
 
       // Fetch campaigns with brand information
-      const campaigns = await Campaign.find(filter)
+      let query = Campaign.find(filter);
+      
+      // Apply case-insensitive sorting for name field
+      if (sortBy === 'name') {
+        query = query.collation({ locale: 'en', strength: 2 });
+      }
+      
+      const campaigns = await query
         .populate({
           path: 'brandId',
           select: 'userId logo',
@@ -233,7 +251,7 @@ export class CampaignController {
   static async getCampaignsByBrandId(req: Request, res: Response): Promise<void> {
     try {
       const { brandId } = req.params;
-      const { status, sortBy } = req.query;
+      const { status, sortBy, sortOrder } = req.query;
 
       // Verify brand exists
       const brand = await Brand.findById(brandId);
@@ -260,18 +278,34 @@ export class CampaignController {
         }
       }
 
+      // Determine sort order (asc = 1, desc = -1)
+      const order = sortOrder === 'asc' ? 1 : -1;
+      
+      // Default sort orders based on field
+      const defaultOrder: Record<string, number> = {
+        date: -1,    // newest first
+        budget: -1,  // highest first
+        name: 1,     // A-Z
+      };
+
       // Build sort query
-      let sortQuery: any = { createdAt: -1 }; // Default sort by date (newest first)
+      let sortQuery: any = { createdAt: defaultOrder.date }; // Default sort by date (newest first)
       if (sortBy === 'budget') {
-        sortQuery = { budget: -1 }; // Sort by budget (highest first)
+        sortQuery = { budget: sortOrder ? order : defaultOrder.budget };
       } else if (sortBy === 'name') {
-        sortQuery = { name: 1 }; // Sort by name (A-Z)
+        // For name sorting, use case-insensitive collation
+        sortQuery = { name: sortOrder ? order : defaultOrder.name };
       } else if (sortBy === 'date') {
-        sortQuery = { createdAt: -1 }; // Sort by date (newest first)
+        sortQuery = { createdAt: sortOrder ? order : defaultOrder.date };
       }
 
-      // Fetch campaigns
-      const campaigns = await Campaign.find(filter)
+      // Fetch campaigns with case-insensitive sorting for name field
+      let query = Campaign.find(filter);
+      if (sortBy === 'name') {
+        query = query.collation({ locale: 'en', strength: 2 });
+      }
+      
+      const campaigns = await query
         .sort(sortQuery)
         .lean();
 

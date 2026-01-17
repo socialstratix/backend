@@ -177,7 +177,7 @@ export class SavedCampaignController {
         return;
       }
 
-      const { sortBy } = req.query;
+      const { sortBy, sortOrder } = req.query;
 
       // Get influencer profile
       const influencer = await Influencer.findOne({ userId: req.user._id });
@@ -202,20 +202,36 @@ export class SavedCampaignController {
       // Get campaign IDs
       const campaignIds = savedCampaigns.map((sc) => sc.campaignId);
 
+      // Determine sort order (asc = 1, desc = -1)
+      const order = sortOrder === 'asc' ? 1 : -1;
+      
+      // Default sort orders based on field
+      const defaultOrder: Record<string, number> = {
+        date: -1,    // newest first
+        budget: -1,  // highest first
+        name: 1,     // A-Z
+      };
+
       // Build sort query for campaigns
-      let campaignSortQuery: any = { createdAt: -1 };
+      let campaignSortQuery: any = { createdAt: defaultOrder.date };
       if (sortBy === 'budget') {
-        campaignSortQuery = { budget: -1 };
+        campaignSortQuery = { budget: sortOrder ? order : defaultOrder.budget };
       } else if (sortBy === 'name') {
-        campaignSortQuery = { name: 1 };
+        campaignSortQuery = { name: sortOrder ? order : defaultOrder.name };
       } else if (sortBy === 'date') {
-        campaignSortQuery = { createdAt: -1 };
+        campaignSortQuery = { createdAt: sortOrder ? order : defaultOrder.date };
       }
 
-      // Fetch full campaign details
-      const campaigns = await Campaign.find({
+      // Fetch full campaign details with case-insensitive sorting for name field
+      let query = Campaign.find({
         _id: { $in: campaignIds },
-      })
+      });
+      
+      if (sortBy === 'name') {
+        query = query.collation({ locale: 'en', strength: 2 });
+      }
+      
+      const campaigns = await query
         .populate({
           path: 'brandId',
           select: 'userId logo',
