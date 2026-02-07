@@ -283,7 +283,7 @@ export class BrandController {
 
       if (shouldRemoveLogo) {
         console.log('🗑️ Removing logo for brand:', userId);
-        brand.logo = null; // Just set to null in database
+        brand.logo = undefined; // Just set to undefined in database
         console.log('✅ Logo removed from database');
       }
 

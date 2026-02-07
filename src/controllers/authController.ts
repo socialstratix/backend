@@ -214,7 +214,7 @@ export class AuthController {
 
       if (shouldRemoveAvatar) {
         console.log('🗑️ Removing avatar for user:', req.user._id);
-        user.avatar = null; // Just set to null in database
+        user.avatar = undefined; // Just set to undefined in database
         console.log('✅ Avatar removed from database');
       }
       // Handle avatar file upload if file is present

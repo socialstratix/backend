@@ -451,13 +451,13 @@ export class InfluencerController {
 
       if (shouldRemoveProfileImage) {
         console.log('🗑️ Removing profile image for influencer:', userId);
-        influencer.profileImage = null; // Just set to null in database
+        influencer.profileImage = undefined; // Just set to undefined in database
         console.log('✅ Profile image removed from database');
       }
       
       if (shouldRemoveCoverImage) {
         console.log('🗑️ Removing cover image for influencer:', userId);
-        influencer.coverImage = null; // Just set to null in database
+        influencer.coverImage = undefined; // Just set to undefined in database
         console.log('✅ Cover image removed from database');
       }
 
