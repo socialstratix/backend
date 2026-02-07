@@ -273,19 +273,23 @@ export class BrandController {
         return;
       }
 
+      // Handle logo removal flag
+      // Normalize removal flag - handle string 'true', boolean true, or string '1'
+      const shouldRemoveLogo = 
+        updateData.removeLogo === 'true' || 
+        updateData.removeLogo === true ||
+        updateData.removeLogo === '1' ||
+        String(updateData.removeLogo).toLowerCase() === 'true';
+
+      if (shouldRemoveLogo) {
+        console.log('🗑️ Removing logo for brand:', userId);
+        brand.logo = null; // Just set to null in database
+        console.log('✅ Logo removed from database');
+      }
+
       // Handle logo upload if file is present
       if (req.file) {
         try {
-          // Delete old logo if it exists
-          if (brand.logo) {
-            try {
-              await storageService.deleteFile(brand.logo);
-            } catch (deleteError) {
-              // Log but don't fail if deletion fails
-              console.warn('Failed to delete old logo:', deleteError);
-            }
-          }
-
           // Generate unique filename
           const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
           const ext = path.extname(req.file.originalname);

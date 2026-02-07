@@ -390,15 +390,6 @@ export class InfluencerController {
         try {
           // Handle profile image upload
           if (files.profileImage && files.profileImage[0]) {
-            // Delete old profile image if it exists
-            if (influencer.profileImage) {
-              try {
-                await storageService.deleteFile(influencer.profileImage);
-              } catch (deleteError) {
-                console.warn('Failed to delete old profile image:', deleteError);
-              }
-            }
-
             // Generate unique filename
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
             const ext = path.extname(files.profileImage[0].originalname);
@@ -418,15 +409,6 @@ export class InfluencerController {
 
           // Handle cover image upload
           if (files.coverImage && files.coverImage[0]) {
-            // Delete old cover image if it exists
-            if (influencer.coverImage) {
-              try {
-                await storageService.deleteFile(influencer.coverImage);
-              } catch (deleteError) {
-                console.warn('Failed to delete old cover image:', deleteError);
-              }
-            }
-
             // Generate unique filename
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
             const ext = path.extname(files.coverImage[0].originalname);
@@ -451,6 +433,32 @@ export class InfluencerController {
           });
           return;
         }
+      }
+
+      // Handle photo removal flags
+      // Normalize removal flags - handle string 'true', boolean true, or string '1'
+      const shouldRemoveProfileImage = 
+        updateData.removeProfileImage === 'true' || 
+        updateData.removeProfileImage === true ||
+        updateData.removeProfileImage === '1' ||
+        String(updateData.removeProfileImage).toLowerCase() === 'true';
+      
+      const shouldRemoveCoverImage = 
+        updateData.removeCoverImage === 'true' || 
+        updateData.removeCoverImage === true ||
+        updateData.removeCoverImage === '1' ||
+        String(updateData.removeCoverImage).toLowerCase() === 'true';
+
+      if (shouldRemoveProfileImage) {
+        console.log('🗑️ Removing profile image for influencer:', userId);
+        influencer.profileImage = null; // Just set to null in database
+        console.log('✅ Profile image removed from database');
+      }
+      
+      if (shouldRemoveCoverImage) {
+        console.log('🗑️ Removing cover image for influencer:', userId);
+        influencer.coverImage = null; // Just set to null in database
+        console.log('✅ Cover image removed from database');
       }
 
       // Update influencer fields
@@ -486,6 +494,43 @@ export class InfluencerController {
       }
 
       await influencer.save();
+
+      // Handle social media profiles update
+      if (updateData.socialMedia !== undefined) {
+        let socialMediaArray: Array<{ platform: string; username: string; profileUrl: string }> = [];
+        
+        // Parse socialMedia if it's a JSON string (from FormData)
+        if (typeof updateData.socialMedia === 'string') {
+          try {
+            socialMediaArray = JSON.parse(updateData.socialMedia);
+          } catch (e) {
+            console.warn('Failed to parse socialMedia:', e);
+          }
+        } else if (Array.isArray(updateData.socialMedia)) {
+          socialMediaArray = updateData.socialMedia;
+        }
+
+        // Delete all existing social media profiles for this influencer
+        await SocialMediaProfile.deleteMany({ influencerId: influencer._id });
+
+        // Create or update social media profiles
+        if (socialMediaArray.length > 0) {
+          for (const socialData of socialMediaArray) {
+            if (socialData.username && socialData.platform) {
+              await SocialMediaProfile.create({
+                influencerId: influencer._id,
+                platform: socialData.platform,
+                username: socialData.username,
+                profileUrl: socialData.profileUrl || `https://${socialData.platform}.com/${socialData.username}`,
+                followers: 0,
+                following: 0,
+                posts: 0,
+                isVerified: false,
+              });
+            }
+          }
+        }
+      }
 
       // Populate userId to get user details
       await influencer.populate('userId', 'name email avatar');

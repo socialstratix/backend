@@ -559,7 +559,16 @@ class StorageService {
 
     // If we get here, we couldn't determine the service or deletion failed
     // Log a warning but don't throw (best effort cleanup)
-    console.warn(`⚠️ Could not delete file: ${fileUrlOrId} (unknown service or deletion failed)`);
+    const errorMessage = `Could not delete file: ${fileUrlOrId} (unknown service or deletion failed)`;
+    console.warn(`⚠️ ${errorMessage}`);
+    
+    // Check if neither Cloudinary nor Drive is initialized
+    if (!this.cloudinaryInitialized && !this.driveInitialized) {
+      const initError = 'Neither Cloudinary nor Google Drive is initialized. Check environment variables.';
+      console.error(`❌ ${initError}`);
+      console.error(`   Cloudinary initialized: ${this.cloudinaryInitialized}`);
+      console.error(`   Google Drive initialized: ${this.driveInitialized}`);
+    }
   }
 
   /**

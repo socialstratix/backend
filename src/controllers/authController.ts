@@ -191,7 +191,7 @@ export class AuthController {
         return;
       }
 
-      const { name, avatar } = req.body;
+      const { name, avatar, removeAvatar } = req.body;
 
       // Get user as Mongoose document (not plain object) so we can save it
       const user = await User.findById(req.user._id);
@@ -204,19 +204,22 @@ export class AuthController {
         return;
       }
 
-      // Handle avatar file upload if file is present
-      if (req.file) {
-        try {
-          // Delete old avatar if it exists and is a Google Drive URL
-          if (user.avatar && user.avatar.includes('drive.google.com')) {
-            try {
-              await storageService.deleteFile(user.avatar);
-            } catch (deleteError) {
-              // Log but don't fail if deletion fails
-              console.warn('Failed to delete old avatar:', deleteError);
-            }
-          }
+      // Handle avatar removal first (before file upload check)
+      // Normalize removal flag - handle string 'true', boolean true, or string '1'
+      const shouldRemoveAvatar = 
+        removeAvatar === 'true' || 
+        removeAvatar === true ||
+        removeAvatar === '1' ||
+        String(removeAvatar).toLowerCase() === 'true';
 
+      if (shouldRemoveAvatar) {
+        console.log('🗑️ Removing avatar for user:', req.user._id);
+        user.avatar = null; // Just set to null in database
+        console.log('✅ Avatar removed from database');
+      }
+      // Handle avatar file upload if file is present
+      else if (req.file) {
+        try {
           // Generate unique filename
           const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
           const ext = path.extname(req.file.originalname);
@@ -240,8 +243,8 @@ export class AuthController {
           });
           return;
         }
-      } else if (avatar !== undefined) {
-        // If avatar is provided as a string (URL), use it directly
+      } else if (avatar !== undefined && !removeAvatar) {
+        // If avatar is provided as a string (URL), use it directly (only if not removing)
         user.avatar = avatar;
       }
 
@@ -314,15 +317,6 @@ export class AuthController {
           message: 'User not found',
         });
         return;
-      }
-
-      // Delete old avatar if it exists
-      if (user.avatar) {
-        try {
-          await storageService.deleteFile(user.avatar);
-        } catch (deleteError) {
-          console.warn('Failed to delete old avatar:', deleteError);
-        }
       }
 
       // Generate unique filename
