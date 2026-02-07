@@ -6,7 +6,7 @@ interface UploadFileOptions {
   buffer: Buffer;
   filename: string;
   mimetype: string;
-  folderType: 'brand' | 'influencer-profile' | 'influencer-cover';
+  folderType: 'brand' | 'influencer-profile' | 'influencer-cover' | 'campaign-attachments';
 }
 
 interface FolderMap {
@@ -162,7 +162,7 @@ class StorageService {
   /**
    * Get or create folder by type (for Google Drive)
    */
-  private async getOrCreateFolder(folderType: 'brand' | 'influencer-profile' | 'influencer-cover'): Promise<string> {
+  private async getOrCreateFolder(folderType: 'brand' | 'influencer-profile' | 'influencer-cover' | 'campaign-attachments'): Promise<string> {
     await this.ensureDriveInitialized();
     if (!this.drive) {
       throw new Error('Google Drive not initialized');
@@ -291,11 +291,12 @@ class StorageService {
   /**
    * Get folder path based on type
    */
-  private getFolderPath(folderType: 'brand' | 'influencer-profile' | 'influencer-cover'): string {
+  private getFolderPath(folderType: 'brand' | 'influencer-profile' | 'influencer-cover' | 'campaign-attachments'): string {
     const folderMap: { [key: string]: string } = {
       'brand': 'brands',
       'influencer-profile': 'influencers/profile',
       'influencer-cover': 'influencers/cover',
+      'campaign-attachments': 'campaigns/attachments',
     };
     return folderMap[folderType] || folderType;
   }

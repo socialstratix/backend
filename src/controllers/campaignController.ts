@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
+import path from 'path';
 import { Campaign } from '../models/Campaign';
 import { Brand } from '../models/Brand';
 import { CampaignApplication } from '../models/CampaignApplication';
@@ -9,6 +10,7 @@ import { Message } from '../models/Message';
 import { AuthRequest } from '../middleware/auth';
 import { Platform } from '../types';
 import { io } from '../socket';
+import storageService from '../services/storageService';
 
 export class CampaignController {
   /**
@@ -360,7 +362,38 @@ export class CampaignController {
       }
 
       const userId = req.user._id;
-      const { name, description, budget, platforms, tags, location, publishDate, publishTime, deadline, requirements, attachments } = req.body;
+      let { name, description, budget, platforms, tags, location, publishDate, publishTime, deadline, requirements, attachments } = req.body;
+
+      // Parse JSON strings from FormData
+      if (typeof platforms === 'string') {
+        try {
+          platforms = JSON.parse(platforms);
+        } catch (e) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid platforms format',
+          });
+          return;
+        }
+      }
+
+      if (typeof tags === 'string') {
+        try {
+          tags = JSON.parse(tags);
+        } catch (e) {
+          // If parsing fails, treat as empty array
+          tags = [];
+        }
+      }
+
+      if (typeof attachments === 'string') {
+        try {
+          attachments = JSON.parse(attachments);
+        } catch (e) {
+          // If parsing fails, treat as empty array
+          attachments = [];
+        }
+      }
 
       // Validate required fields
       if (!name || !description || budget === undefined || !platforms) {
@@ -464,9 +497,41 @@ export class CampaignController {
         campaignData.requirements = requirements.trim();
       }
 
-      if (attachments && Array.isArray(attachments) && attachments.length > 0) {
-        campaignData.attachments = attachments.filter((url: string) => url && typeof url === 'string');
+      // Handle file uploads
+      const uploadedAttachmentUrls: string[] = [];
+      const files = req.files as Express.Multer.File[] | undefined;
+      
+      if (files && files.length > 0) {
+        try {
+          for (const file of files) {
+            // Generate unique filename
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = path.extname(file.originalname);
+            const name = path.basename(file.originalname, ext);
+            const filename = `${name}-${uniqueSuffix}${ext}`;
+
+            // Upload to storage (Cloudinary with Drive fallback)
+            const fileUrl = await storageService.uploadFile({
+              buffer: file.buffer,
+              filename: filename,
+              mimetype: file.mimetype,
+              folderType: 'campaign-attachments',
+            });
+
+            uploadedAttachmentUrls.push(fileUrl);
+          }
+        } catch (uploadError: any) {
+          console.error('Error uploading campaign attachments:', uploadError);
+          // Continue with campaign creation even if some files fail
+        }
       }
+
+      // Merge uploaded URLs with any existing attachment URLs from body
+      const existingAttachments = attachments && Array.isArray(attachments) 
+        ? attachments.filter((url: string) => url && typeof url === 'string')
+        : [];
+      
+      campaignData.attachments = [...existingAttachments, ...uploadedAttachmentUrls];
 
       // Create campaign
       const campaign = new Campaign(campaignData);
@@ -611,7 +676,38 @@ export class CampaignController {
 
       const { campaignId } = req.params;
       const userId = req.user._id;
-      const { name, description, budget, platforms, tags, location, publishDate, publishTime, deadline, requirements, attachments, status, isClosed } = req.body;
+      let { name, description, budget, platforms, tags, location, publishDate, publishTime, deadline, requirements, attachments, status, isClosed } = req.body;
+
+      // Parse JSON strings from FormData
+      if (platforms !== undefined && typeof platforms === 'string') {
+        try {
+          platforms = JSON.parse(platforms);
+        } catch (e) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid platforms format',
+          });
+          return;
+        }
+      }
+
+      if (tags !== undefined && typeof tags === 'string') {
+        try {
+          tags = JSON.parse(tags);
+        } catch (e) {
+          // If parsing fails, treat as empty array
+          tags = [];
+        }
+      }
+
+      if (attachments !== undefined && typeof attachments === 'string') {
+        try {
+          attachments = JSON.parse(attachments);
+        } catch (e) {
+          // If parsing fails, treat as empty array
+          attachments = [];
+        }
+      }
 
       if (!mongoose.Types.ObjectId.isValid(campaignId)) {
         res.status(400).json({
@@ -731,10 +827,48 @@ export class CampaignController {
         }
       }
 
+      // Handle file uploads
+      const files = req.files as Express.Multer.File[] | undefined;
+      const uploadedAttachmentUrls: string[] = [];
+      
+      if (files && files.length > 0) {
+        try {
+          for (const file of files) {
+            // Generate unique filename
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = path.extname(file.originalname);
+            const name = path.basename(file.originalname, ext);
+            const filename = `${name}-${uniqueSuffix}${ext}`;
+
+            // Upload to storage (Cloudinary with Drive fallback)
+            const fileUrl = await storageService.uploadFile({
+              buffer: file.buffer,
+              filename: filename,
+              mimetype: file.mimetype,
+              folderType: 'campaign-attachments',
+            });
+
+            uploadedAttachmentUrls.push(fileUrl);
+          }
+        } catch (uploadError: any) {
+          console.error('Error uploading campaign attachments:', uploadError);
+          // Continue with campaign update even if some files fail
+        }
+      }
+
+      // Handle attachments update
       if (attachments !== undefined) {
         if (Array.isArray(attachments)) {
-          campaign.attachments = attachments.filter((url: string) => url && typeof url === 'string');
+          // Merge existing attachments (from body) with newly uploaded files
+          const existingAttachments = attachments.filter((url: string) => url && typeof url === 'string');
+          campaign.attachments = [...existingAttachments, ...uploadedAttachmentUrls];
+        } else if (uploadedAttachmentUrls.length > 0) {
+          // If attachments field not provided but files uploaded, add to existing
+          campaign.attachments = [...(campaign.attachments || []), ...uploadedAttachmentUrls];
         }
+      } else if (uploadedAttachmentUrls.length > 0) {
+        // If attachments field not provided but files uploaded, add to existing
+        campaign.attachments = [...(campaign.attachments || []), ...uploadedAttachmentUrls];
       }
 
       if (status !== undefined) {

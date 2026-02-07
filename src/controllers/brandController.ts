@@ -84,10 +84,26 @@ export class BrandController {
       // Build filter query
       const filter: any = {};
 
+      // If search is provided, first find users that match the search query by name
+      // This allows searching brands by their user name
       if (search) {
+        const matchingUsers = await User.find({
+          name: { $regex: search, $options: 'i' },
+          userType: 'brand',
+        }).select('_id');
+        
+        const matchingUserIds = matchingUsers.map((user) => user._id);
+        
+        // Build search filter to include user name search, description, and tags
         filter.$or = [
           { description: { $regex: search, $options: 'i' } },
+          { tags: { $regex: search, $options: 'i' } },
         ];
+        
+        // If we found matching users by name, include them in the search
+        if (matchingUserIds.length > 0) {
+          filter.$or.push({ userId: { $in: matchingUserIds } });
+        }
       }
 
       if (tags) {
@@ -96,23 +112,58 @@ export class BrandController {
       }
 
       if (location) {
-        filter.location = { $regex: location, $options: 'i' };
+        const locationOr = [
+          { 'location.city': { $regex: location, $options: 'i' } },
+          { 'location.country': { $regex: location, $options: 'i' } },
+          { 'location.state': { $regex: location, $options: 'i' } },
+        ];
+        
+        // If we already have a $or filter (from search), combine with $and
+        if (filter.$or) {
+          const existingOr = filter.$or;
+          delete filter.$or;
+          filter.$and = [
+            { $or: existingOr },
+            { $or: locationOr },
+          ];
+        } else {
+          filter.$or = locationOr;
+        }
       }
 
       // Get total count
       const total = await Brand.countDocuments(filter);
 
-      // Get paginated brands
+      // Get paginated brands with user data
       const brands = await Brand.find(filter)
         .populate('userId', 'name email avatar')
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limitNum);
+        .limit(limitNum)
+        .lean();
+
+      // Format brands for response
+      const formattedBrands = brands.map((brand: any) => ({
+        _id: brand._id,
+        userId: brand.userId?._id || brand.userId,
+        description: brand.description,
+        website: brand.website,
+        location: brand.location,
+        logo: brand.logo,
+        tags: brand.tags || [],
+        user: brand.userId ? {
+          name: brand.userId.name,
+          email: brand.userId.email,
+          avatar: brand.userId.avatar,
+        } : null,
+        createdAt: brand.createdAt,
+        updatedAt: brand.updatedAt,
+      }));
 
       res.status(200).json({
         success: true,
         data: {
-          brands,
+          brands: formattedBrands,
           pagination: {
             page: pageNum,
             limit: limitNum,

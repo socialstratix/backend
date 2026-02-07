@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { CampaignController } from '../../controllers/campaignController';
 import { authenticate } from '../../middleware/auth';
+import { uploadCampaignAttachmentsArray } from '../../middleware/upload';
 
 const router = Router();
 
@@ -9,7 +10,7 @@ const router = Router();
  * @desc    Create a new campaign
  * @access  Private (Brand only)
  */
-router.post('/', authenticate, CampaignController.createCampaign);
+router.post('/', authenticate, uploadCampaignAttachmentsArray, CampaignController.createCampaign);
 
 /**
  * @route   GET /api/v1/campaign
@@ -49,7 +50,7 @@ router.get('/:campaignId', CampaignController.getCampaignById);
  * @desc    Update campaign
  * @access  Private (Brand only)
  */
-router.put('/:campaignId', authenticate, CampaignController.updateCampaign);
+router.put('/:campaignId', authenticate, uploadCampaignAttachmentsArray, CampaignController.updateCampaign);
 
 /**
  * @route   DELETE /api/v1/campaign/:campaignId
