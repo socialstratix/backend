@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import { User } from '../models/User';
 import storageService from '../services/storageService';
 import path from 'path';
+import { isValidUrl } from '../utils/validation';
 
 export class AuthController {
   /**
@@ -32,15 +33,7 @@ export class AuthController {
         return;
       }
 
-      if (password.length < 6) {
-        res.status(400).json({
-          success: false,
-          message: 'Password must be at least 6 characters long',
-        });
-        return;
-      }
-
-      // Create user
+      // Create user (password validation is handled by User model)
       const user = await AuthService.signupUser({
         email,
         password,
@@ -244,8 +237,20 @@ export class AuthController {
           return;
         }
       } else if (avatar !== undefined && !removeAvatar) {
-        // If avatar is provided as a string (URL), use it directly (only if not removing)
-        user.avatar = avatar;
+        // If avatar is provided as a string (URL), validate it first
+        if (typeof avatar === 'string' && avatar.trim() !== '') {
+          if (!isValidUrl(avatar)) {
+            res.status(400).json({
+              success: false,
+              message: 'Avatar must be a valid URL (must start with http:// or https://)',
+            });
+            return;
+          }
+          user.avatar = avatar.trim();
+        } else if (avatar === null || avatar === '') {
+          // Allow setting avatar to null/empty to remove it
+          user.avatar = undefined;
+        }
       }
 
       // Update name field

@@ -1,5 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import { IUser, UserType } from '../types';
+import { isValidEmail } from '../utils/validation';
 
 const userSchema = new Schema<IUser>(
   {
@@ -8,7 +9,10 @@ const userSchema = new Schema<IUser>(
       required: [true, 'Email is required'],
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
+      validate: {
+        validator: (value: string) => isValidEmail(value),
+        message: 'Please provide a valid email address',
+      },
     },
     password: {
       type: String,

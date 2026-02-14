@@ -1,16 +1,7 @@
 import mongoose, { Schema } from 'mongoose';
-import { IInfluencer, ILocation } from '../types';
-
-const locationSchema = new Schema<ILocation>(
-  {
-    address: { type: String, trim: true },
-    city: { type: String, trim: true },
-    state: { type: String, trim: true },
-    country: { type: String, trim: true },
-    pincode: { type: String, trim: true },
-  },
-  { _id: false }
-);
+import { IInfluencer } from '../types';
+import { locationSchema } from './schemas/locationSchema';
+import { validateTags } from '../utils/validation';
 
 const influencerSchema = new Schema<IInfluencer>(
   {
@@ -63,12 +54,33 @@ const influencerSchema = new Schema<IInfluencer>(
     tags: {
       type: [String],
       default: [],
+      validate: {
+        validator: (value: string[]) => {
+          const result = validateTags(value);
+          return result.isValid;
+        },
+        message: (props: any) => {
+          const result = validateTags(props.value);
+          return result.error || 'Invalid tags';
+        },
+      },
     },
   },
   {
     timestamps: true,
   }
 );
+
+// Pre-save hook to normalize tags
+influencerSchema.pre('save', function (next) {
+  if (this.tags && Array.isArray(this.tags)) {
+    const result = validateTags(this.tags);
+    if (result.isValid && result.normalized) {
+      this.tags = result.normalized;
+    }
+  }
+  next();
+});
 
 // Indexes
 influencerSchema.index({ userId: 1 }, { unique: true });

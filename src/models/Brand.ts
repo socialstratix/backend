@@ -1,16 +1,7 @@
 import mongoose, { Schema } from 'mongoose';
-import { IBrand, ILocation } from '../types';
-
-const locationSchema = new Schema<ILocation>(
-  {
-    address: { type: String, trim: true },
-    city: { type: String, trim: true },
-    state: { type: String, trim: true },
-    country: { type: String, trim: true },
-    pincode: { type: String, trim: true },
-  },
-  { _id: false }
-);
+import { IBrand } from '../types';
+import { locationSchema } from './schemas/locationSchema';
+import { isValidUrl, validateTags } from '../utils/validation';
 
 const brandSchema = new Schema<IBrand>(
   {
@@ -26,7 +17,10 @@ const brandSchema = new Schema<IBrand>(
     website: {
       type: String,
       trim: true,
-      match: [/^https?:\/\/.+/, 'Please provide a valid URL'],
+      validate: {
+        validator: (value: string) => !value || isValidUrl(value),
+        message: 'Please provide a valid URL (must start with http:// or https://)',
+      },
     },
     location: {
       type: locationSchema,
@@ -38,12 +32,33 @@ const brandSchema = new Schema<IBrand>(
     tags: {
       type: [String],
       default: [],
+      validate: {
+        validator: (value: string[]) => {
+          const result = validateTags(value);
+          return result.isValid;
+        },
+        message: (props: any) => {
+          const result = validateTags(props.value);
+          return result.error || 'Invalid tags';
+        },
+      },
     },
   },
   {
     timestamps: true,
   }
 );
+
+// Pre-save hook to normalize tags
+brandSchema.pre('save', function (next) {
+  if (this.tags && Array.isArray(this.tags)) {
+    const result = validateTags(this.tags);
+    if (result.isValid && result.normalized) {
+      this.tags = result.normalized;
+    }
+  }
+  next();
+});
 
 // Indexes
 brandSchema.index({ userId: 1 }, { unique: true });

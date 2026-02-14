@@ -5,6 +5,9 @@ import { SocialMediaProfile } from '../models/SocialMediaProfile';
 import { AuthRequest } from '../middleware/auth';
 import storageService from '../services/storageService';
 import path from 'path';
+import { Platform } from '../types';
+
+const VALID_PLATFORMS: Platform[] = ['youtube', 'facebook', 'instagram', 'tiktok', 'x'];
 
 export class InfluencerController {
   /**
@@ -20,6 +23,7 @@ export class InfluencerController {
         tags,
         location,
         isTopCreator,
+        platforms: platformsQuery,
       } = req.query;
 
       const pageNum = parseInt(page as string, 10);
@@ -62,6 +66,24 @@ export class InfluencerController {
 
       if (isTopCreator !== undefined) {
         filter.isTopCreator = isTopCreator === 'true';
+      }
+
+      // Filter by linked social media platforms (influencers who have at least one of these platforms in SocialMediaProfile)
+      if (platformsQuery) {
+        const platformArray = typeof platformsQuery === 'string'
+          ? platformsQuery.split(',').map((p) => p.trim().toLowerCase())
+          : Array.isArray(platformsQuery)
+            ? (platformsQuery as string[]).map((p) => String(p).trim().toLowerCase())
+            : [];
+        const validPlatforms = platformArray.filter((p): p is Platform =>
+          VALID_PLATFORMS.includes(p as Platform)
+        );
+        if (validPlatforms.length > 0) {
+          const profilesWithPlatform = await SocialMediaProfile.find({
+            platform: { $in: validPlatforms },
+          }).distinct('influencerId');
+          filter._id = { $in: profilesWithPlatform };
+        }
       }
 
       // Get total count
